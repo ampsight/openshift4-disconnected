@@ -4,24 +4,47 @@
 openshift_install: 'openshift-install'
 openshift_client: 'oc'
 kubectl: 'kubectl'
-kubeauth: "~/.kube/auth"
+kubeconfig: "{{ ansible_env.HOME }}/.kube/config"
 
-install_config: ''
-ignition_configs: ''
+mirror_base: '/opt/openshift'
+ignition_configs: '{{ mirror_base }}/cluster'
+pull_secret: '{{ mirror_base }}/pull-secret.json'
 
 master_schedulable: false
 cluster_channel: 'fast'
 
 fips: true
-pullSecret: ''
-sshKey: ''
+ssh_public_key_file: '/{{ ansible_env.HOME }}.ssh/id_ed25519.pub'
 
-base_domain: 'redhatgov.io'
-cluster_name: 'caas'
+ocp_base_domain: 'example.com'
+ocp_cluster_name: 'caas'
 
 num_workers: 3
+num_masters: 3
 
 air_gapped: true
 
-mirror_registry: 'localhost:5000'
+mirror_registry: 'localhost'
+mirror_registry_port: 5000
 mirror_transport: 'https'
+
+fips_enabled: false
+
+# Certificate bundle that will be added to the install-config.yaml
+# This generally includes a certificate for the disconnected docker registry
+certificate_bundle: '/etc/pki/tls/certs/registry.crt'
+
+# none, vmware, aws, azure, gcp
+platform: none
+
+cluster_network_cidr: '10.128.0.0/14'
+cluster_network_prefix: 23
+service_network_cidr: '172.30.0.0/16'
+
+mtu: 1450
+vxlanPort: 4789
+
+network_policy: 'NetworkPolicy'
+
+master_kargs: ''
+worker_kargs: ''

@@ -1,0 +1,58 @@
+---
+
+- name: Uninstall redhat-operators catalog source
+  delegate_to: localhost
+  k8s:
+    state: absent
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition:
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: CatalogSource
+      metadata:
+        name: redhat-operator-catalog
+        namespace: openshift-marketplace
+      spec:
+        sourceType: grpc
+        image: '{{ rh_op_repo }}'
+        displayName: RedHat Operators Catalog
+        publisher: grpc
+
+- name: Uninstall certified-operators catalog source
+  delegate_to: localhost
+  k8s:
+    state: absent
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition:
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: CatalogSource
+      metadata:
+        name: certified-operator-catalog
+        namespace: openshift-marketplace
+      spec:
+        sourceType: grpc
+        image: '{{ cert_op_repo }}'
+        displayName: Certified Operators Catalog
+        publisher: grpc
+
+- name: Uninstall community-operators catalog source
+  delegate_to: localhost
+  k8s:
+    state: absent
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition:
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: CatalogSource
+      metadata:
+        name: community-operator-catalog
+        namespace: openshift-marketplace
+      spec:
+        sourceType: grpc
+        image: '{{ comm_op_repo }}'
+        displayName: Community Operators Catalog
+        publisher: grpc

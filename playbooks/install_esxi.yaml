@@ -1,0 +1,120 @@
+---
+- hosts: helper_node
+  gather_facts: true
+  become: false
+  tasks:
+
+    - name: Customize ISO
+      include_role:
+        name: custom_iso
+      when: (network_mode is match("static"))
+      tags:
+        - iso
+
+    - name: Create a folder for ISOs
+      vcenter_folder:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        datacenter_name: '{{ datacenter_name }}'
+        validate_certs: "{{ vmware_ssl_enabled }}"
+        folder_name: 'ISOs'
+        parent_folder: ''
+        state: present
+      delegate_to: localhost
+
+    - name: Create a folder for RHCOS ISOs
+      vcenter_folder:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        datacenter_name: '{{ datacenter_name }}'
+        validate_certs: "{{ vmware_ssl_enabled }}"
+        folder_name: 'RHCOS'
+        parent_folder: 'ISOs'
+        state: present
+      delegate_to: localhost
+
+    - name: Copy RHCOS Customer ISOs to Datastore
+      vsphere_copy:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        src: '/mnt/nfs/{{ item.name }}.iso'
+        datacenter: '{{ datacenter_name }}'
+        datastore: '{{ datastore_name }}'
+        path: 'ISOs/RHCOS/{{ item.name }}.iso'
+        validate_certs: "{{ vmware_ssl_enabled }}"
+      delegate_to: localhost
+      with_items:
+        - '{{ openshift_bootstrap }}'
+        - '{{ openshift_masters }}'
+        - '{{ openshift_workers }}'
+      when: (network_mode is match("static"))
+      tags:
+        - iso
+
+    - name: Cleanup Custom ISO working area
+      become: true
+      file:
+        path: '{{ item }}'
+        state: absent
+      when: (network_mode is match("static"))
+      with_fileglob: '/mnt/nfs/*.iso'
+      tags:
+        - iso
+
+    - name: Remove old ignition configs
+      become: true
+      file:
+        path: '{{ httpd_document_root }}/ignition'
+        state: absent
+      tags:
+        - ignition
+
+    - name: Generate Ignition Files
+      import_role:
+        name: generate_ignition
+
+    - name: Modify Ignition Files
+      include_role:
+        name: modify_ignition
+      when: (network_mode is match("static"))
+
+    - name: Create Ignition staging location
+      become: true
+      file:
+        path: '{{ httpd_document_root }}/ignition'
+        state: directory
+        mode: '0755'
+        setype: 'httpd_sys_content_t'
+      tags:
+        - ignition
+
+    - name: Stage Ignition configs
+      become: true
+      copy:
+        src: "{{ item }}"
+        dest: "{{ httpd_document_root }}/ignition/"
+        mode: '0755'
+        setype: 'httpd_sys_content_t'
+      with_fileglob:
+        - '{{ ignition_configs }}/*.ign'
+      tags:
+        - ignition
+
+    - name: Copy append-bootstrap ignition
+      become: true
+      copy:
+        src: "files/append-bootstrap.ign"
+        dest: "{{ httpd_document_root }}/ignition/append-bootstrap.ign"
+        mode: '0755'
+        setype: 'httpd_sys_content_t'
+      tags:
+        - ignition
+
+    - name: Provision ESXi Infrastructure
+      import_role:
+        name: provision_esxi
+      tags:
+        - esxi

@@ -1,2 +1,10 @@
 ---
 # defaults file for nvidia_gpu_operator
+
+mirror_base: '/opt/openshift'
+
+mirror_registry: 'localhost'
+mirror_registry_port: 5000
+mirror_transport: 'https'
+
+archive: '{{ mirror_base }}/gpu-operator/gpu-operator-1.0.0.tgz'

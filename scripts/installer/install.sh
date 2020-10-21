@@ -1,32 +1,65 @@
-#!/bin/bash
+#!/bin/bash -xe
 
-# AWS CLI commands to launch instances
-HTTPD_IP=""
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+# Source the environment file with the default settings
+source "${SCRIPT_DIR}/../env.sh"
+
+# NOTE: IGNITION VERSIONS in the USER DATA
+# 4.2/4.3/4.4 = 2.1.0
+# 4.5 = 2.2.0
+# 4.6 = 3.1.0
+
+
+# Check if the security group exists already.
+K8S_MASTER_SG=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 describe-security-groups \
+  | jq ".SecurityGroups[] | select(.GroupName == \"${OCP_CLUSTER_NAME}-k8s-master\") | .GroupId" | tr -d '"')
+
+# Check if the security group exists already.
+K8S_WORKER_SG=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 describe-security-groups \
+  | jq ".SecurityGroups[] | select(.GroupName == \"${OCP_CLUSTER_NAME}-k8s-worker\") | .GroupId" | tr -d '"')
+
+USER_DATA=$(sed "s|IGN_SERVER|${IGN_SERVER}|" user-data-ign.json | sed "s|IGN_PATH|${IGN_PATH}|g" | sed "s|IGN_VERSION|${IGN_VERSION}|")
+
+# Generate the base64 encoded user data for each ec2 instance
+BOOTSTRAP_UD=$(echo "${USER_DATA}" | sed "s|HOST|bootstrap|")
+MASTER0_UD=$(echo "${USER_DATA}" | sed "s|HOST|master0|")
+MASTER1_UD=$(echo "${USER_DATA}" | sed "s|HOST|master1|")
+MASTER2_UD=$(echo "${USER_DATA}" | sed "s|HOST|master2|")
+WORKER0_UD=$(echo "${USER_DATA}" | sed "s|HOST|worker0|")
+WORKER1_UD=$(echo "${USER_DATA}" | sed "s|HOST|worker1|")
+WORKER2_UD=$(echo "${USER_DATA}" | sed "s|HOST|worker2|")
 
 # AWS CLI to launch bootstrap node
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'i3.large' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-bootstrap}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/bootstrap.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+BOOTSTRAP_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'i3.large' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_MASTER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-bootstrap}]" --private-ip-address "${BOOTSTRAP_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${BOOTSTRAP_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
+aws ${ELB_ENDPOINT} ${AWS_OPTS} \
+      elb register-instances-with-load-balancer --load-balancer-name "${OCP_CLUSTER_NAME}-ingress" --instances "${BOOTSTRAP_INSTANCE_ID}"
 
 # AWS CLI to launch master0
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'm5.2xlarge' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-master0}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/master0.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+MASTER0_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'm5.2xlarge' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_MASTER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-master0}]" --private-ip-address "${MASTER0_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,VolumeSize=50,VolumeType=gp2,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${MASTER0_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
 # AWS CLI to launch master1
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'm5.2xlarge' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-master1}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/master1.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+MASTER1_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'm5.2xlarge' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_MASTER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-master1}]" --private-ip-address "${MASTER1_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,VolumeSize=50,VolumeType=gp2,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${MASTER1_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
 # AWS CLI to launch master2
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'm5.2xlarge' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-master2}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/master2.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+MASTER2_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'm5.2xlarge' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_MASTER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-master2}]" --private-ip-address "${MASTER2_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,VolumeSize=50,VolumeType=gp2,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${MASTER2_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
 
 # Notes on adding workers -----
@@ -37,22 +70,29 @@ aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-ty
 
 
 # AWS CLI to launch worker0
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'm5.2xlarge' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-worker0}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/worker0.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+WORKER0_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'm5.2xlarge' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_WORKER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-worker0}]" --private-ip-address "${WORKER0_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,VolumeSize=50,VolumeType=gp2,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${WORKER0_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
 # AWS CLI to launch worker1
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'm5.2xlarge' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-worker1}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/worker1.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+WORKER1_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'm5.2xlarge' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_WORKER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-worker1}]" --private-ip-address "${WORKER1_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,VolumeSize=50,VolumeType=gp2,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${WORKER1_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
 # AWS CLI to launch worker2
-aws ec2 run-instances --image-id 'ami-00d4375c5625a0988' --count 1 --instance-type 'm5.2xlarge' \
---key-name 'Combine' --subnet-id 'subnet-092a00c216e3afdad' --security-group-ids 'sg-0b6c28f41aac7ce72' --ebs-optimized \
---tag-specifications 'ResourceType=string,Tags=[{Key=Name,Value=caas-worker2}]' --private-ip-address '<PRIVATE_IP>' \
---user-data '{"ignition":{"config":{"replace":{"source":"http://${HTTPD_IP}/openshift4/worker2.ign","verification":{}}},"timeouts":{},"version":"2.1.0"},"networkd":{},"passwd":{},"storage":{},"systemd":{}}'
+WORKER2_INSTANCE_ID=$(aws ${EC2_ENDPOINT} ${AWS_OPTS} ec2 run-instances --image-id "${AMI}" --count 1 --instance-type 'm5.2xlarge' \
+--key-name 'Combine' --subnet-id "${EC2_SUBNET}" --security-group-ids "${K8S_WORKER_SG}" --ebs-optimized \
+--tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${OCP_CLUSTER_NAME}-worker2}]" --private-ip-address "${WORKER2_IP}" \
+--block-device-mapping "DeviceName=/dev/xvda,Ebs={DeleteOnTermination=true,VolumeSize=50,VolumeType=gp2,KmsKeyId=${KMS_KEY_ID},Encrypted=true}" \
+--user-data "${WORKER2_UD}" | jq '.Instances[0].InstanceId' | tr -d '"')
 
+aws ${ELB_ENDPOINT} ${AWS_OPTS} \
+      elb register-instances-with-load-balancer --load-balancer-name "${OCP_CLUSTER_NAME}-ingress" --instances \
+      "${MASTER0_INSTANCE_ID}" "${MASTER1_INSTANCE_ID}" "${MASTER2_INSTANCE_ID}" \
+      "${WORKER0_INSTANCE_ID}" "${WORKER1_INSTANCE_ID}" "${WORKER2_INSTANCE_ID}"
 
-
+exit 0

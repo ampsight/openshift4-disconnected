@@ -1,0 +1,117 @@
+---
+
+- name: Create quay namespace
+  delegate_to: localhost
+  k8s:
+    name: '{{ quay_namespace }}'
+    api_version: v1
+    kind: Namespace
+    state: present
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+  tags:
+    - subscription
+
+- name: Create the quay operator group
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-operator-group.yaml.j2') }}"
+  tags:
+    - subscription
+
+- name: Subscribe to the quay operator
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-operator-subscription.yaml.j2') }}"
+  tags:
+    - subscription
+
+- name: Create postgres credential secret
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-postgres-secret.yaml.j2') }}"
+  tags:
+    - credentials
+
+- name: Create redis credentials secret
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-redis-secret.yaml.j2') }}"
+  tags:
+    - credentials
+
+- name: Create quay config secret
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-config-secret.yaml.j2') }}"
+  tags:
+    - credentials
+
+- name: Create quay admin credentials secret
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-admin-secret.yaml.j2') }}"
+  tags:
+    - credentials
+
+#- name: Slurp the pull secret file into a variable
+#  delegate_to: localhost
+#  slurp:
+#    src: "{{ pull_secret }}"
+#  register: pull_secret_slurp
+
+- name: Create Redhat pull secret
+  delegate_to: localhost
+  k8s:
+    state: present
+    name: 'redhat-pull-secret'
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-enterprise-redhat-pull-secret.yaml.j2') }}"
+  tags:
+    - credentials
+
+- name: Create Quay EcoSystem
+  delegate_to: localhost
+  k8s:
+    state: present
+    namespace: '{{ quay_namespace }}'
+    wait: true
+    kubeconfig: "{{ kubeconfig }}"
+    validate_certs: '{{ kube_ssl_enabled }}'
+    definition: "{{ lookup('template', 'templates/quay-ecosystem.yaml.j2') }}"
+  tags:
+    - ecosystem

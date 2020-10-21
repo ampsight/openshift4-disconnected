@@ -1,0 +1,42 @@
+[all]
+
+[dhcp_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[pxe_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[dns_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[helper_node]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[httpd_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[mirror_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[registry_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[nfs_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[load_balancer]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[ntp_server]
+localhost ansible_python_interpreter=auto ansible_connection=local
+
+[all:vars]
+
+#####################################################
+# Variables below can be used with AWS instances
+#ansible_ssh_private_key_file=
+#ansible_connection=ssh
+#ansible_user=ec2-user
+#ansible_become=yes
+#ansible_become_method=sudo
+#ansible_become_user=root

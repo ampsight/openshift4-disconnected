@@ -1,0 +1,40 @@
+apiVersion: redhatcop.redhat.io/v1alpha1
+kind: QuayEcosystem
+metadata:
+  name: quay-ecosystem
+spec:
+  clair:
+    enabled: {{ clair_enabled }}
+    imagePullSecretName: redhat-pull-secret
+    updateInterval: "60m"
+  quay:
+    imagePullSecretName: redhat-pull-secret
+    superuserCredentialsSecretName: quay-admin
+    configSecretName: quay-config
+    deploymentStrategy: RollingUpdate
+    #externalAccessType: LoadBalancer
+    externalAccessType: Route
+    configHostname: quay-config.apps.{{ ocp_cluster_name }}.{{ ocp_base_domain }}
+    hostname: quay.apps.{{ ocp_cluster_name }}.{{ ocp_base_domain }}
+    skipSetup: false
+    redis:
+      credentialsSecretName: redis-password
+    database:
+      volumeSize: 10Gi
+      credentialsSecretName: postgres-creds
+    registryStorage:
+      persistentVolumeSize: 20Gi
+      persistentVolumeAccessModes:
+        - ReadWriteOnce
+#    livenessProbe:
+#      initialDelaySeconds: 120
+#      httpGet:
+#        path: /health/instance
+#        port: 8443
+#        scheme: HTTPS
+#    readinessProbe:
+#      initialDelaySeconds: 10
+#      httpGet:
+#        path: /health/instance
+#        port: 8443
+#        scheme: HTTPS

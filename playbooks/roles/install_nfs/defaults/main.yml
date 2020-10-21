@@ -1,11 +1,24 @@
 ---
 # defaults file for install_nfs
-nfs_exports: []
+nfs_exports:
+  - '/mnt/nfs'
 
 nfs_rpcbind_state: started
 nfs_rpcbind_enabled: true
 
 air_gapped: true
 
-mirror_registry: 'localhost:5000'
+mirror_registry: 'localhost'
+mirror_registry_port: 5000
 mirror_transport: 'https'
+
+kubeconfig: "{{ ansible_env.HOME }}/.kube/config"
+
+ocp_base_domain: 'example.com'
+ocp_cluster_name: 'caas'
+
+nfs_namespace: 'nfs-provisioner'
+
+kube_ssl_enabled: false
+
+nfs_sc_default: false

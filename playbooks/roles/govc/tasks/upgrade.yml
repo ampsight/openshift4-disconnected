@@ -1,0 +1,15 @@
+---
+
+- name: Set enableUUID on {{ vmhost }}
+  shell:
+    cmd: |
+        govc vm.change -k={{ not vmware_ssl_enabled | bool }} \
+        '-u={{ vcenter_username}}:{{ vcenter_password }}@{{ vcenter_hostname }}:{{ vcenter_port }}' \
+        -vm {{ vmhost }} -e="disk.enableUUID=1"
+
+- name: Set VM HW Version on {{ vmhost }}
+  shell:
+    cmd: |
+        govc vm.upgrade -k={{ not vmware_ssl_enabled | bool }} \
+        '-u={{ vcenter_username}}:{{ vcenter_password }}@{{ vcenter_hostname }}:{{ vcenter_port }}' \
+        -version={{ vm_hw_ver }} -vm {{ vmhost }}
